@@ -11,9 +11,10 @@ ChemDraw Server is a unified chemical informatics API service based on FastAPI a
 - Convert chemical names to SMILES strings
 - Convert SMILES strings to chemical names
 - Convert SMILES to RDKit molecule objects
-- MCP (Multi-Chain Protocol) compatible API
-- API Key authentication
+- MCP compatible API
+- API Key (Bearer token) authentication
 - Prometheus monitoring integration
+- loguru ensemble with uvicorn
 
 ## Requirements
 
@@ -36,6 +37,15 @@ uv run main_server.py
 ```
 
 The API will be available at: `http://localhost:1145/chemdraw/api/`
+
+The MCP will be available at: `http://localhost:1145/chemdraw/mcp/`
+
+Need auth
+```json
+"headers": {
+  "Authorization": "Bearer <API KEY>"
+}
+```
 
 ### API Endpoints
 
@@ -93,8 +103,9 @@ ChemDraw Server 是一个基于 FastAPI 和 FastMCP 的统一化学信息学 API
 - SMILES 转化学名称
 - SMILES 转 RDKit 分子对象
 - 兼容 MCP 协议的 API
-- API Key 认证
+- API Key (Bearer token) 认证
 - 集成 Prometheus 监控
+- loguru集成进uvicorn日志
 
 ### 环境要求
 
@@ -115,6 +126,15 @@ uv run main_server.py
 ```
 
 API 默认地址为：`http://localhost:1145/chemdraw/api/`
+
+MCP 地址为：`http://localhost:1145/chemdraw/mcp/`
+
+需要认证
+```json
+"headers": {
+  "Authorization": "Bearer <API KEY>"
+}
+```
 
 ### 主要接口
 
