@@ -17,15 +17,14 @@ ChemDraw Server is a unified chemical informatics API service based on FastAPI a
 
 ## Requirements
 
-- Python >= 3.10
+- Python == 3.10
 
 ## Installation
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/tom832/chemdraw-server.git
 cd chemdraw-server
-pip install -r requirements.txt
-# 或者使用 PEP 621/pyproject.toml 支持的工具（如 pip, poetry, uv 等）
+uv sync
 ```
 
 ## Usage
@@ -33,7 +32,7 @@ pip install -r requirements.txt
 ### Start the server
 
 ```bash
-python main_server.py
+uv run main_server.py
 ```
 
 The API will be available at: `http://localhost:1145/chemdraw/api/`
@@ -99,21 +98,20 @@ ChemDraw Server 是一个基于 FastAPI 和 FastMCP 的统一化学信息学 API
 
 ### 环境要求
 
-- Python >= 3.10
+- Python == 3.10
 
 ### 安装方法
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/tom832/chemdraw-server.git
 cd chemdraw-server
-pip install -r requirements.txt
-# 或使用支持 PEP 621/pyproject.toml 的工具（如 pip, poetry, uv 等）
+uv sync
 ```
 
 ### 启动服务
 
 ```bash
-python main_server.py
+uv run main_server.py
 ```
 
 API 默认地址为：`http://localhost:1145/chemdraw/api/`

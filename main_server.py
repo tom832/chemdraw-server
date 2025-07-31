@@ -49,7 +49,7 @@ def main():
             "main_server:root_app",
             host="0.0.0.0",
             port=1145,
-            log_level="info",
+            # log_level="info",
             # reload=True,
             # workers=1,
         )
