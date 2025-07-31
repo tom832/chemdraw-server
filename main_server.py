@@ -4,8 +4,6 @@ import uvicorn
 from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-from fastapi.openapi.docs import get_swagger_ui_html
-from fastapi.openapi.utils import get_openapi
 from uvicorn_loguru_integration import run_uvicorn_loguru
 
 # Import shared modules
@@ -49,7 +47,6 @@ def main():
             "main_server:root_app",
             host="0.0.0.0",
             port=1145,
-            # log_level="info",
             # reload=True,
             # workers=1,
         )
