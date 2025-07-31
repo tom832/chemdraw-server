@@ -1,4 +1,4 @@
-# main_server.py (Final Recommended Version)
+# main_server.py
 
 import uvicorn
 from prometheus_fastapi_instrumentator import Instrumentator
