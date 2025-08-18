@@ -67,6 +67,7 @@ Set your API key in a `.env` file or via environment variable:
 
 ```
 API_KEY=your_api_key_here
+DOCS_ACCESS_TOKEN=
 ```
 
 ## Configuration
@@ -156,6 +157,7 @@ MCP 地址为：`http://localhost:1145/chemdraw/mcp/`
 
 ```
 API_KEY=your_api_key_here
+DOCS_ACCESS_TOKEN=
 ```
 
 ### 配置项
