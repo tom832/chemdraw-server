@@ -1,5 +1,6 @@
-from fastapi import FastAPI, Depends, APIRouter
-
+from fastapi import FastAPI, Depends, APIRouter, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
+from config import settings
 from dependencies import verify_api_key
 from schemas import (
     NameInput, SmilesInput, SmilesResponse, 
@@ -10,9 +11,56 @@ from services import (
 )
 
 
+DOCS_ACCESS_TOKEN = settings.DOCS_ACCESS_TOKEN
+
+class DocsProtectionMiddleware(BaseHTTPMiddleware):
+    """保护文档访问的中间件"""
+    
+    def __init__(self, app, docs_token: str = None):
+        super().__init__(app)
+        self.docs_token = docs_token
+    
+    async def dispatch(self, request: Request, call_next):
+        # 检查是否是访问docs相关路径
+        if request.url.path in ["/chemdraw/api/docs", "/chemdraw/api/redoc"] or request.url.path.startswith("/chemdraw/api/openapi"):
+            # 如果设置了docs token，则需要验证
+            if self.docs_token:
+                # 从查询参数中获取token
+                token = request.query_params.get("token")
+                
+                # 对于openapi.json请求，检查Referer头部是否包含正确的token
+                if request.url.path.startswith("/chemdraw/api/openapi"):
+                    referer = request.headers.get("referer", "")
+                    if f"token={self.docs_token}" in referer:
+                        # 如果Referer包含正确的token，允许访问
+                        pass
+                    elif token != self.docs_token:
+                        return Response(
+                            content="Unauthorized access to docs",
+                            status_code=401,
+                            media_type="text/plain; charset=utf-8"
+                        )
+                elif token != self.docs_token:
+                    # 对于docs和redoc页面，直接检查token参数
+                    return Response(
+                        content="Unauthorized access to docs",
+                        status_code=401,
+                        media_type="text/plain; charset=utf-8"
+                    )
+        
+        # 继续处理请求
+        response = await call_next(request)
+        return response
+
 api_app = FastAPI(
     title=f"Chemdraw Tools API",
+    docs_url=None if not DOCS_ACCESS_TOKEN else "/docs",
+    redoc_url=None if not DOCS_ACCESS_TOKEN else "/redoc",
 )
+
+if DOCS_ACCESS_TOKEN:
+    api_app.add_middleware(DocsProtectionMiddleware, docs_token=DOCS_ACCESS_TOKEN)
+
 
 @api_app.get("/", tags=["Public"])
 def root():

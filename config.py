@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     
     # 定义环境变量
     API_KEY: str = "DEFAULT_API_KEY"
+    DOCS_ACCESS_TOKEN: str = "DEFAULT_DOCS_ACCESS_TOKEN"
     PROJECT_NAME: str = "Chemdraw Tools API"
     PROJECT_VERSION: str = "1.0.0"
 

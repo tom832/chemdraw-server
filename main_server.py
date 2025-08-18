@@ -24,7 +24,7 @@ root_app = FastAPI(
 
 # 对根应用进行统一监控
 instrumentator = Instrumentator(
-    excluded_handlers=["/metrics", "/health"]
+    excluded_handlers=["/metrics", "/health", "/mcp"]
 ).instrument(root_app).expose(root_app)
 
 # 挂载两个子应用
