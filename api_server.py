@@ -36,7 +36,7 @@ class DocsProtectionMiddleware(BaseHTTPMiddleware):
                         pass
                     elif token != self.docs_token:
                         return Response(
-                            content="Unauthorized access to docs",
+                            content="Unauthorized access to docs. Please provide token as query parameter or ensure referer contains the token.",
                             status_code=401,
                             media_type="text/plain; charset=utf-8"
                         )
