@@ -11,14 +11,55 @@ class ChemServiceError(Exception):
 def name_to_smiles(name: str) -> str:
     """使用 ChemScript 将化学名称转换为 SMILES"""
     try:
-        return cs.StructureData.LoadData(name, "name").Smiles
+        # 尝试加载化学结构
+        structure = cs.StructureData.LoadData(name, "name")
+
+        # 检查是否成功加载
+        if structure is None:
+            raise ChemServiceError(f"无法识别化学名称: '{name}'。请检查名称格式是否正确，或尝试使用SMILES格式。")
+
+        # 检查是否有 Smiles 属性
+        if not hasattr(structure, 'Smiles'):
+            raise ChemServiceError(f"加载的结构对象没有 Smiles 属性: '{name}'")
+
+        smiles = structure.Smiles
+        if not smiles:
+            raise ChemServiceError(f"转换结果为空SMILES: '{name}'")
+
+        return smiles
+
+    except ChemServiceError:
+        return ''
+        
     except Exception as e:
         raise ChemServiceError(f"ChemScript 名称转SMILES失败: {e}")
 
 def smiles_to_name(smiles: str) -> str:
     """使用 ChemScript 将 SMILES 转换为化学名称"""
     try:
-        return cs.StructureData.LoadData(smiles, "smiles").ChemicalName()
+        if not smiles:
+            raise ChemServiceError("SMILES 字符串不能为空")
+
+        # 尝试加载化学结构
+        structure = cs.StructureData.LoadData(smiles, "smiles")
+
+        # 检查是否成功加载
+        if structure is None:
+            raise ChemServiceError(f"无法解析SMILES: '{smiles}'。请检查SMILES格式是否正确。")
+
+        # 检查是否有 ChemicalName 方法
+        if not hasattr(structure, 'ChemicalName'):
+            raise ChemServiceError(f"加载的结构对象没有 ChemicalName 方法: '{smiles}'")
+
+        chemical_name = structure.ChemicalName()
+        if not chemical_name:
+            raise ChemServiceError(f"转换结果为空化学名称: '{smiles}'")
+
+        return chemical_name
+
+    except ChemServiceError:
+        # 重新抛出我们自定义的异常
+        raise
     except Exception as e:
         raise ChemServiceError(f"ChemScript SMILES转名称失败: {e}")
 
