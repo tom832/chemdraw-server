@@ -4,10 +4,15 @@ import uvicorn
 from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
-from uvicorn_loguru_integration import run_uvicorn_loguru
+from loguru_logging_intercept import setup_loguru_logging_intercept
+from uvicorn.supervisors import Multiprocess, ChangeReload
+import logging
 from config import settings
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request, Response
+from loguru import logger
+import sys
+import time
 
 # Import shared modules
 from mcp_server import mcp_server
@@ -21,11 +26,11 @@ DOCS_ACCESS_TOKEN = settings.DOCS_ACCESS_TOKEN
 
 class DocsProtectionMiddleware(BaseHTTPMiddleware):
     """保护文档访问的中间件"""
-    
+
     def __init__(self, app, docs_token: str = None):
         super().__init__(app)
         self.docs_token = docs_token
-    
+
     async def dispatch(self, request: Request, call_next):
         # 检查是否是访问docs相关路径
         if request.url.path in ["/chemdraw/docs", "/chemdraw/redoc"] or request.url.path.startswith("/chemdraw/openapi") or request.url.path.startswith("/chemdraw/api/openapi"):
@@ -33,7 +38,7 @@ class DocsProtectionMiddleware(BaseHTTPMiddleware):
             if self.docs_token:
                 # 从查询参数中获取token
                 token = request.query_params.get("token")
-                
+
                 # 对于openapi.json请求，检查Referer头部是否包含正确的token
                 if request.url.path.startswith("/chemdraw/openapi") or request.url.path.startswith("/chemdraw/api/openapi"):
                     referer = request.headers.get("referer", "")
@@ -53,7 +58,7 @@ class DocsProtectionMiddleware(BaseHTTPMiddleware):
                         status_code=401,
                         media_type="text/plain; charset=utf-8"
                     )
-        
+
         # 继续处理请求
         response = await call_next(request)
         return response
@@ -87,12 +92,66 @@ root_app.add_middleware(
     allow_headers=["*"],
 )
 
+def run_uvicorn_with_metrics_filter(config: uvicorn.Config, force_exit=False):
+    """自定义的 uvicorn 运行函数，在拦截设置后添加过滤器"""
+    
+    def _get_log_level(config: uvicorn.Config) -> int:
+        if isinstance(config.log_level, str):
+            return logging.getLevelName(config.log_level)
+        else:
+            return config.log_level or logging.INFO
+    
+    def _get_supervisor_type(config: uvicorn.Config):
+        if config.should_reload:
+            return ChangeReload
+        if config.workers > 1:
+            return Multiprocess
+        return None
+    
+    def _run_server_with_intercept(**kwargs):
+        # 设置 loguru 拦截
+        setup_loguru_logging_intercept(
+            level=_get_log_level(config), 
+            modules=("uvicorn.error", "uvicorn.asgi", "uvicorn.access")
+        )
+        
+        # 在拦截设置后，添加过滤器来过滤掉 /metrics 日志
+        def filter_metrics(record):
+            """过滤掉包含 /metrics 的日志消息"""
+            message = record.get("message", "")
+            return "/metrics" not in str(message)
+        
+        # 移除所有现有处理器
+        logger.remove()
+        # 重新添加带过滤器的处理器
+        logger.add(
+            sys.stderr,
+            filter=filter_metrics,
+            level="INFO",
+            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {name}:{function}:{line} - {message}",
+        )
+        
+        server = uvicorn.Server(config=config)
+        server.force_exit = force_exit
+        server.run(**kwargs)
+    
+    supervisor_type = _get_supervisor_type(config)
+    if supervisor_type:
+        sock = config.bind_socket()
+        supervisor = supervisor_type(
+            config, target=_run_server_with_intercept, sockets=[sock]
+        )
+        supervisor.run()
+    else:
+        _run_server_with_intercept()
+
 def main():
-    run_uvicorn_loguru(
+    run_uvicorn_with_metrics_filter(
         uvicorn.Config(
             "main_server:root_app",
             host="0.0.0.0",
             port=1145,
+            access_log=False,  # 禁用 uvicorn 自带的 access 日志
             # reload=True,
             # workers=1,
         )
