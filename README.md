@@ -58,6 +58,9 @@ Need auth
 - `POST /chemdraw/api/smiles_to_rdkit`  
   Convert SMILES to RDKit molecule
 
+- `POST /chemdraw/api/mol_compare`  
+  Compare two molecule representations using ChemDraw LoadData (auto type detection), return equality (by InChI) and Tanimoto score
+
 - `GET /chemdraw/api/health`  
   Health check
 
@@ -147,6 +150,9 @@ MCP 地址为：`http://localhost:1145/chemdraw/mcp/`
 
 - `POST /chemdraw/api/smiles_to_rdkit`  
   SMILES 转 RDKit 分子对象
+
+- `POST /chemdraw/api/mol_compare`  
+  使用 ChemDraw LoadData（不指定类型自动解析）对比两个分子表示，基于 InChI 判等并返回 Tanimoto 分数
 
 - `GET /chemdraw/api/health`  
   健康检查

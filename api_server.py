@@ -3,11 +3,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from config import settings
 from dependencies import verify_api_key
 from schemas import (
-    NameInput, SmilesInput, SmilesResponse, 
-    NameResponse, MoleculeResponse
+    NameInput, SmilesInput, SmilesResponse,
+    NameResponse, MoleculeResponse,
+    MolCompareInput, MolCompareResponse,
 )
 from services import (
-    name_to_smiles, smiles_to_name, smiles_to_rdkit_mol, 
+    name_to_smiles, smiles_to_name, smiles_to_rdkit_mol,
+    compare_molecules,
 )
 
 
@@ -80,6 +82,11 @@ async def name_to_smiles_api(data: NameInput):
 @api_mcp_router.post("/smiles2name", response_model=NameResponse)
 async def smiles_to_name_api(data: SmilesInput):
     return NameResponse(name=smiles_to_name(data.smiles))
+
+@api_mcp_router.post("/mol_compare", response_model=MolCompareResponse)
+async def mol_compare_api(data: MolCompareInput):
+    result = compare_molecules(data.mol1, data.mol2)
+    return MolCompareResponse(**result)
 
 api_router = APIRouter(tags=["ChemDraw Tools"], dependencies=[Depends(verify_api_key)])
 

@@ -106,3 +106,49 @@ def smiles_to_rdkit_mol(smiles: str) -> Chem.Mol:
 def serialize_molecule(mol: Chem.Mol) -> str:
     """将 RDKit 分子对象序列化为 base64 字符串"""
     return base64.b64encode(pickle.dumps(mol)).decode('utf-8')
+
+def compare_molecules(mol1_repr: str, mol2_repr: str) -> dict:
+    """
+    对比两个分子表示是否相同，并计算 Tanimoto 分数。
+    要求：使用 ChemDraw LoadData，不指定类型，直接让 ChemScript 自行解析。
+    相等判断基于 ChemScript 的 Inchi，Tanimoto 由 ChemScript 内置方法计算。
+    """
+    try:
+        if not mol1_repr or not mol2_repr:
+            raise ChemServiceError("分子表示文本不能为空")
+
+        def _load_structure(repr_text: str, label: str):
+            structure = cs.StructureData.LoadData(repr_text)
+            if structure is None:
+                raise ChemServiceError(f"无法解析第{label}个分子表示")
+            if not hasattr(structure, "Inchi"):
+                raise ChemServiceError(f"第{label}个分子缺少 Inchi 属性")
+            return structure
+
+        struct1 = _load_structure(mol1_repr, "一")
+        struct2 = _load_structure(mol2_repr, "二")
+
+        inchi1 = getattr(struct1, "Inchi", None)
+        inchi2 = getattr(struct2, "Inchi", None)
+        if not inchi1 or not inchi2:
+            raise ChemServiceError("任一分子的 Inchi 为空，无法比较")
+
+        is_equal = inchi1 == inchi2
+
+        if not hasattr(struct1, "Tanimoto"):
+            raise ChemServiceError("ChemScript 结构对象缺少 Tanimoto 方法")
+        tanimoto = struct1.Tanimoto(struct2)
+        try:
+            tanimoto = round(float(tanimoto), 4)
+        except Exception:
+            raise ChemServiceError("Tanimoto 结果无法转换为浮点数")
+
+        return {
+            "is_equal": is_equal,
+            "tanimoto": tanimoto,
+        }
+
+    except ChemServiceError:
+        raise
+    except Exception as e:
+        raise ChemServiceError(f"分子比较失败: {e}")
