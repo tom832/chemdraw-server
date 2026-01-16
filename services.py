@@ -152,3 +152,49 @@ def compare_molecules(mol1_repr: str, mol2_repr: str) -> dict:
         raise
     except Exception as e:
         raise ChemServiceError(f"分子比较失败: {e}")
+
+def batch_compare_molecules(pairs: list) -> dict:
+    """
+    批量对比多对分子。
+    输入：pairs - 包含多个分子对的列表，每个元素包含 mol1, mol2 和可选的 pair_id
+    返回：包含总数、成功数、失败数和详细结果的字典
+    """
+    results = []
+    success_count = 0
+    failed_count = 0
+    
+    for idx, pair in enumerate(pairs):
+        pair_id = pair.get('pair_id') or f"pair_{idx + 1}"
+        mol1 = pair.get('mol1', '')
+        mol2 = pair.get('mol2', '')
+        
+        try:
+            # 调用单个分子比较函数
+            comparison = compare_molecules(mol1, mol2)
+            results.append({
+                "pair_id": pair_id,
+                "mol1": mol1,
+                "mol2": mol2,
+                "is_equal": comparison["is_equal"],
+                "tanimoto": comparison["tanimoto"],
+                "error": None
+            })
+            success_count += 1
+        except Exception as e:
+            # 如果某一对比较失败，记录错误但继续处理其他对
+            results.append({
+                "pair_id": pair_id,
+                "mol1": mol1,
+                "mol2": mol2,
+                "is_equal": False,
+                "tanimoto": 0.0,
+                "error": str(e)
+            })
+            failed_count += 1
+    
+    return {
+        "total": len(pairs),
+        "success": success_count,
+        "failed": failed_count,
+        "results": results
+    }

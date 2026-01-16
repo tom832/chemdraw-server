@@ -6,10 +6,11 @@ from schemas import (
     NameInput, SmilesInput, SmilesResponse,
     NameResponse, MoleculeResponse,
     MolCompareInput, MolCompareResponse,
+    BatchMolCompareInput, BatchMolCompareResponse,
 )
 from services import (
     name_to_smiles, smiles_to_name, smiles_to_rdkit_mol,
-    compare_molecules,
+    compare_molecules, batch_compare_molecules,
 )
 
 
@@ -87,6 +88,22 @@ async def smiles_to_name_api(data: SmilesInput):
 async def mol_compare_api(data: MolCompareInput):
     result = compare_molecules(data.mol1, data.mol2)
     return MolCompareResponse(**result)
+
+@api_mcp_router.post("/batch_mol_compare", response_model=BatchMolCompareResponse)
+async def batch_mol_compare_api(data: BatchMolCompareInput):
+    """
+    批量分子比较接口
+    
+    可以一次性比较多对分子，每对分子包含：
+    - mol1: 第一个分子的表示（SMILES、化学名称等）
+    - mol2: 第二个分子的表示（SMILES、化学名称等）
+    - pair_id: 可选的标识符，用于标识该分子对
+    
+    返回结果包含每对分子的比较结果，即使某些对比较失败也会继续处理其他对。
+    """
+    pairs = [pair.model_dump() for pair in data.pairs]
+    result = batch_compare_molecules(pairs)
+    return BatchMolCompareResponse(**result)
 
 api_router = APIRouter(tags=["ChemDraw Tools"], dependencies=[Depends(verify_api_key)])
 
