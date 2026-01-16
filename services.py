@@ -133,7 +133,7 @@ def compare_molecules(mol1_repr: str, mol2_repr: str) -> dict:
         if not inchi1 or not inchi2:
             raise ChemServiceError("任一分子的 Inchi 为空，无法比较")
 
-        is_equal = inchi1 == inchi2
+        exact_match = inchi1 == inchi2
 
         if not hasattr(struct1, "Tanimoto"):
             raise ChemServiceError("ChemScript 结构对象缺少 Tanimoto 方法")
@@ -143,9 +143,15 @@ def compare_molecules(mol1_repr: str, mol2_repr: str) -> dict:
         except Exception:
             raise ChemServiceError("Tanimoto 结果无法转换为浮点数")
 
+        # 检查是否需要警告：tanimoto为1但exact_match为false
+        warning = None
+        if not exact_match and tanimoto == 1.0:
+            warning = "Structures have identical connectivity (Tanimoto=1.0) but different InChI. This may indicate stereochemistry mismatch or tautomeric forms."
+
         return {
-            "is_equal": is_equal,
+            "exact_match": exact_match,
             "tanimoto": tanimoto,
+            "warning": warning,
         }
 
     except ChemServiceError:
@@ -175,8 +181,9 @@ def batch_compare_molecules(pairs: list) -> dict:
                 "pair_id": pair_id,
                 "mol1": mol1,
                 "mol2": mol2,
-                "is_equal": comparison["is_equal"],
+                "exact_match": comparison["exact_match"],
                 "tanimoto": comparison["tanimoto"],
+                "warning": comparison.get("warning"),
                 "error": None
             })
             success_count += 1
@@ -186,8 +193,9 @@ def batch_compare_molecules(pairs: list) -> dict:
                 "pair_id": pair_id,
                 "mol1": mol1,
                 "mol2": mol2,
-                "is_equal": False,
+                "exact_match": False,
                 "tanimoto": 0.0,
+                "warning": None,
                 "error": str(e)
             })
             failed_count += 1

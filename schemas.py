@@ -18,8 +18,9 @@ class MolCompareInput(BaseModel):
     mol2: str
 
 class MolCompareResponse(BaseModel):
-    is_equal: bool
+    exact_match: bool
     tanimoto: float
+    warning: str | None = None
 
 class MolPair(BaseModel):
     """单个分子对"""
@@ -36,8 +37,9 @@ class BatchMolCompareResult(BaseModel):
     pair_id: str | None = None
     mol1: str
     mol2: str
-    is_equal: bool
+    exact_match: bool
     tanimoto: float
+    warning: str | None = None  # 警告信息（如手性不匹配或互变异构体）
     error: str | None = None  # 如果比较失败，记录错误信息
 
 class BatchMolCompareResponse(BaseModel):
