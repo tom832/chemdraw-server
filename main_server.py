@@ -1,18 +1,44 @@
 # main_server.py
 
+import os
+import multiprocessing
+
+# Prometheus multiprocess mode MUST be configured before prometheus_client is
+# imported (it is pulled in by the Instrumentator below). In multi-worker mode
+# every worker records metrics into this directory and the /metrics endpoint
+# aggregates them. The directory must already exist or the Instrumentator
+# constructor raises ValueError.
+os.environ.setdefault(
+    "PROMETHEUS_MULTIPROC_DIR", os.path.join("log", "prometheus_multiproc")
+)
+_PROM_DIR = os.environ["PROMETHEUS_MULTIPROC_DIR"]
+os.makedirs(_PROM_DIR, exist_ok=True)
+
+# Master process only: clear stale metric shards from previous runs BEFORE any
+# metric object is created. Worker processes are spawned (parent_process() is
+# not None) and must NOT wipe each other's shards.
+if multiprocessing.parent_process() is None:
+    import glob
+
+    for _stale in glob.glob(os.path.join(_PROM_DIR, "*")):
+        try:
+            os.remove(_stale)
+        except OSError:
+            pass
+
+import functools
+import logging
+
 import uvicorn
 from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI
 from loguru_logging_intercept import setup_loguru_logging_intercept
-from uvicorn.supervisors import Multiprocess, ChangeReload
-import logging
+from uvicorn.supervisors import Multiprocess
 from config import settings
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request, Response
 from loguru import logger
-import sys
-import time
 
 # Import shared modules
 from mcp_server import mcp_server
@@ -92,68 +118,74 @@ root_app.add_middleware(
     allow_headers=["*"],
 )
 
-def run_uvicorn_with_metrics_filter(config: uvicorn.Config, force_exit=False):
-    """自定义的 uvicorn 运行函数，在拦截设置后添加过滤器"""
-    
-    def _get_log_level(config: uvicorn.Config) -> int:
-        if isinstance(config.log_level, str):
-            return logging.getLevelName(config.log_level)
-        else:
-            return config.log_level or logging.INFO
-    
-    def _get_supervisor_type(config: uvicorn.Config):
-        if config.should_reload:
-            return ChangeReload
-        if config.workers > 1:
-            return Multiprocess
-        return None
-    
-    def _run_server_with_intercept(**kwargs):
-        # 设置 loguru 拦截
-        setup_loguru_logging_intercept(
-            level=_get_log_level(config), 
-            modules=("uvicorn.error", "uvicorn.asgi", "uvicorn.access")
-        )
-        
-        # 在拦截设置后，添加过滤器来过滤掉 /metrics 日志
-        def filter_metrics(record):
-            """过滤掉包含 /metrics 的日志消息"""
-            message = record.get("message", "")
-            return "/metrics" not in str(message)
-        
-        # 移除所有现有处理器
-        logger.remove()
-        # 重新添加带过滤器的处理器
-        logger.add(
-            sys.stderr,
-            filter=filter_metrics,
-            level="INFO",
-            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {name}:{function}:{line} - {message}",
-        )
-        
-        server = uvicorn.Server(config=config)
-        server.force_exit = force_exit
-        server.run(**kwargs)
-    
-    supervisor_type = _get_supervisor_type(config)
-    if supervisor_type:
+def _get_log_level(config: uvicorn.Config) -> int:
+    if isinstance(config.log_level, str):
+        return logging.getLevelName(config.log_level)
+    return config.log_level or logging.INFO
+
+
+def _filter_metrics(record):
+    """Drop log lines that mention /metrics to keep the logs clean."""
+    return "/metrics" not in str(record.get("message", ""))
+
+
+def _server_target(config: uvicorn.Config, sockets=None):
+    """Run a uvicorn server. Executed in EACH worker process (and in the
+    single-process path).
+
+    This MUST be a module-level function (not a closure) so it can be pickled
+    and shipped to worker processes under the Windows 'spawn' start method.
+    """
+    # loguru interception must be (re)configured inside every worker process.
+    setup_loguru_logging_intercept(
+        level=_get_log_level(config),
+        modules=("uvicorn.error", "uvicorn.asgi", "uvicorn.access"),
+    )
+    logger.remove()
+    # Per-worker file: avoids multi-process rotation/compression races that
+    # would otherwise occur when several workers write one shared log file.
+    logger.add(
+        f"log/app_{os.getpid()}.log",
+        filter=_filter_metrics,
+        level="WARNING",
+        rotation="20 MB",
+        retention="7 days",
+        compression="zip",
+        enqueue=True,
+        format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {name}:{function}:{line} - {message}",
+    )
+    server = uvicorn.Server(config=config)
+    server.run(sockets=sockets)
+
+
+def run_uvicorn_with_metrics_filter(config: uvicorn.Config):
+    """Start uvicorn, wiring loguru interception into each worker.
+
+    For workers > 1 the listening socket is bound once in the parent and handed
+    to the Multiprocess supervisor. The per-worker target is a picklable
+    functools.partial so it survives the Windows 'spawn' start method.
+    """
+    if config.workers and config.workers > 1:
         sock = config.bind_socket()
-        supervisor = supervisor_type(
-            config, target=_run_server_with_intercept, sockets=[sock]
-        )
+        target = functools.partial(_server_target, config)
+        supervisor = Multiprocess(config, target=target, sockets=[sock])
         supervisor.run()
     else:
-        _run_server_with_intercept()
+        _server_target(config)
+
 
 def main():
+    # Worker count: WORKERS env var overrides; default = CPU count.
+    workers = int(os.environ.get("WORKERS", "0")) or (os.cpu_count() or 1)
+    host = os.environ.get("HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", "1145"))
     run_uvicorn_with_metrics_filter(
         uvicorn.Config(
             "main_server:root_app",
-            host="0.0.0.0",
-            port=1145,
-            access_log=False,  # 禁用 uvicorn 自带的 access 日志
-            # reload=True,
-            # workers=1,
+            host=host,
+            port=port,
+            access_log=False,  # uvicorn's own access log stays disabled
+            workers=workers,
         )
     )
 

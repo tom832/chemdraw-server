@@ -77,20 +77,20 @@ def health_check_api():
 api_mcp_router = APIRouter(tags=["MCP-Compatible"], dependencies=[Depends(verify_api_key)])
 
 @api_mcp_router.post("/name2smiles", response_model=SmilesResponse)
-async def name_to_smiles_api(data: NameInput):
+def name_to_smiles_api(data: NameInput):
     return SmilesResponse(smiles=name_to_smiles(data.name))
 
 @api_mcp_router.post("/smiles2name", response_model=NameResponse)
-async def smiles_to_name_api(data: SmilesInput):
+def smiles_to_name_api(data: SmilesInput):
     return NameResponse(name=smiles_to_name(data.smiles))
 
 @api_mcp_router.post("/mol_compare", response_model=MolCompareResponse)
-async def mol_compare_api(data: MolCompareInput):
+def mol_compare_api(data: MolCompareInput):
     result = compare_molecules(data.mol1, data.mol2)
     return MolCompareResponse(**result)
 
 @api_mcp_router.post("/batch_mol_compare", response_model=BatchMolCompareResponse)
-async def batch_mol_compare_api(data: BatchMolCompareInput):
+def batch_mol_compare_api(data: BatchMolCompareInput):
     """
     批量分子比较接口
     
@@ -108,7 +108,7 @@ async def batch_mol_compare_api(data: BatchMolCompareInput):
 api_router = APIRouter(tags=["ChemDraw Tools"], dependencies=[Depends(verify_api_key)])
 
 @api_router.post("/smiles2rdkit", response_model=MoleculeResponse)
-async def smiles_to_rdkit_api(data: SmilesInput):
+def smiles_to_rdkit_api(data: SmilesInput):
     return MoleculeResponse(molecule=smiles_to_rdkit_mol(data.smiles))
 
 api_app.include_router(api_mcp_router)

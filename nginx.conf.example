@@ -1,0 +1,63 @@
+# ============================================================================
+# nginx.conf.example - ChemDraw server load balancing across 2 machines (1:1)
+#
+# Put this inside the `http { ... }` block of your nginx config (or in a file
+# under conf.d/ that is included by it). Replace the two backend IPs with your
+# actual machine addresses.
+# ============================================================================
+
+upstream chemdraw_backend {
+    # Default strategy is round-robin with equal weight == exact 1:1 split.
+    server 10.0.0.1:1145 max_fails=3 fail_timeout=10s;   # machine A
+    server 10.0.0.2:1145 max_fails=3 fail_timeout=10s;   # machine B
+
+    # Reuse upstream connections (less TCP handshake overhead under load).
+    keepalive 64;
+}
+
+server {
+    listen 80;
+    server_name _;          # replace with your domain if you have one
+
+    # ---- REST API / docs / metrics: STATELESS -> round-robin is correct ----
+    # The backend serves everything under the /chemdraw/ prefix (root_path),
+    # so we pass the URI through unchanged (proxy_pass has no trailing URI).
+    location /chemdraw/ {
+        proxy_pass http://chemdraw_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection        "";        # enable keepalive to upstream
+
+        # ChemScript calls can take a while under load; be generous on reads.
+        proxy_connect_timeout 5s;
+        proxy_read_timeout    120s;
+        proxy_send_timeout    120s;
+    }
+
+    # ---- OPTIONAL: MCP is STATEFUL (StreamableHTTP sessions live in worker RAM)
+    # If you also expose MCP (/chemdraw/mcp/) through nginx, a session must always
+    # return to the SAME machine AND ideally the same worker. Plain round-robin
+    # will break sessions across the 2 machines. Pin clients by IP for MCP:
+    #
+    # upstream chemdraw_mcp {
+    #     ip_hash;                       # sticky by client IP
+    #     server 10.0.0.1:1145;
+    #     server 10.0.0.2:1145;
+    # }
+    # location /chemdraw/mcp/ {
+    #     proxy_pass http://chemdraw_mcp;
+    #     proxy_http_version 1.1;
+    #     proxy_set_header Host       $host;
+    #     proxy_set_header Connection "";
+    #     proxy_read_timeout 1h;         # long-lived streaming connections
+    #     proxy_buffering off;           # stream responses through immediately
+    # }
+    #
+    # NOTE: ip_hash only pins to a MACHINE, not to a specific worker within it.
+    # True multi-worker MCP needs a shared session backend; if you rely on MCP
+    # sessions, consider running the MCP entrypoint with a single worker, or use
+    # a dedicated stateless transport.
+}

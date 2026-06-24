@@ -59,6 +59,9 @@ cover/
 
 # Django stuff:
 *.log
+
+# Runtime logs (loguru app.log + rotated .zip archives, ChemScript native.log)
+log/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
