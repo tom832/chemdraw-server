@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Depends, APIRouter, Request, Response
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from config import settings
 from dependencies import verify_api_key
@@ -11,6 +12,7 @@ from schemas import (
 from services import (
     name_to_smiles, smiles_to_name, smiles_to_rdkit_mol,
     compare_molecules, batch_compare_molecules,
+    ChemServiceError,
 )
 
 
@@ -63,6 +65,16 @@ api_app = FastAPI(
 
 if DOCS_ACCESS_TOKEN:
     api_app.add_middleware(DocsProtectionMiddleware, docs_token=DOCS_ACCESS_TOKEN)
+
+
+@api_app.exception_handler(ChemServiceError)
+async def chem_service_error_handler(request: Request, exc: ChemServiceError):
+    """ChemScript 无法命名/解析等业务失败属于输入问题，返回 422 而非 500。
+
+    这样可避免把每个无法处理的分子记成 500 + 海量 diagnose 堆栈，
+    既止住日志膨胀，也不向调用方暴露内部堆栈。
+    """
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
 
 
 @api_app.get("/", tags=["Public"])

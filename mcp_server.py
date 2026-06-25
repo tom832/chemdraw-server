@@ -1,12 +1,21 @@
 # mcp_server.py
 from fastapi import FastAPI
+from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
 from config import settings
 from api_server import api_mcp_router
+from services import ChemServiceError
 
 api_mcp_app = FastAPI(
     title="Chemdraw Tools API compatible with MCP",
 )
+
+
+@api_mcp_app.exception_handler(ChemServiceError)
+async def chem_service_error_handler(request, exc):
+    """Mirror the REST app: business failures -> 422, not 500 + huge traceback."""
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
 
 api_mcp_app.include_router(api_mcp_router, prefix="/chemdraw")
 

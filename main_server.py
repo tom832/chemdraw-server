@@ -152,6 +152,8 @@ def _server_target(config: uvicorn.Config, sockets=None):
         retention="7 days",
         compression="zip",
         enqueue=True,
+        backtrace=False,  # no full call chain
+        diagnose=False,   # no variable values -> avoids leaking user SMILES to disk
         format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {name}:{function}:{line} - {message}",
     )
     server = uvicorn.Server(config=config)
