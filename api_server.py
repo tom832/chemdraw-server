@@ -1,6 +1,9 @@
 from fastapi import FastAPI, Depends, APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+import os
+import socket
+import time
 from config import settings
 from dependencies import verify_api_key
 from schemas import (
@@ -17,6 +20,10 @@ from services import (
 
 
 DOCS_ACCESS_TOKEN = settings.DOCS_ACCESS_TOKEN
+
+# Captured once per worker process at import time.
+_WORKER_START = time.monotonic()
+
 
 class DocsProtectionMiddleware(BaseHTTPMiddleware):
     """保护文档访问的中间件"""
@@ -83,8 +90,17 @@ def root():
 
 @api_app.get("/health", tags=["Public"])
 def health_check_api():
-    """Provides a public health check for the API service."""
-    return {"status": "ok", "service": "API Server"}
+    """Public health check; includes host identity for multi-machine deployments."""
+    workers = int(os.environ.get("WORKERS", "0")) or (os.cpu_count() or 1)
+    return {
+        "status": "ok",
+        "service": "API Server",
+        "hostname": socket.gethostname(),
+        "worker_pid": os.getpid(),
+        "uptime_seconds": round(time.monotonic() - _WORKER_START, 1),
+        "workers": workers,
+        "port": int(os.environ.get("PORT", "1145")),
+    }
 
 api_mcp_router = APIRouter(tags=["MCP-Compatible"], dependencies=[Depends(verify_api_key)])
 
